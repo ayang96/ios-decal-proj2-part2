@@ -65,11 +65,11 @@ func addPost(postImage: UIImage, thread: String, username: String) {
     dateobj.dateFormat = dateFormat
     let date = dateobj.string(from: Date())
     
-    let dictionary: [String:AnyObject] = [
-        firDateNode: date as AnyObject,
-        firThreadNode : thread as AnyObject,
-        firImagePathNode : path as AnyObject,
-        firUsernameNode : username as AnyObject
+    let dictionary: [String:String] = [
+        firDateNode: date,
+        firThreadNode : thread,
+        firImagePathNode : path,
+        firUsernameNode : username
     ]
     dbRef.child(firPostsNode).childByAutoId().setValue(dictionary)
     store(data: data, toPath: path)
@@ -86,11 +86,11 @@ func addPost(postImage: UIImage, thread: String, username: String) {
 func store(data: Data, toPath path: String) {
     let storageRef = FIRStorage.storage().reference()
     // YOUR CODE HERE
-    storageRef.put(data, metadata: nil) { (metadata, error) in
+
+    storageRef.child(path).put(data, metadata: nil) { (metadata, error) in
         if let error = error {
             print(error)
         }
-        
     }
 }
 
@@ -118,28 +118,33 @@ func getPosts(user: CurrentUser, completion: @escaping ([Post]?) -> Void) {
     
     // YOUR CODE HERE
     dbRef.child(firPostsNode).observeSingleEvent(of: .value, with: { (snapshot) in
-            if(snapshot.exists() == false || snapshot.value == nil) {
+            if(snapshot.exists() == false) {
                 completion(nil)
             }
-            let dict = snapshot.value as! [String:AnyObject]
-            for (key,value) in dict{
-                let defvalue = value as! [String:AnyObject]
-                dbRef.child(firUsersNode).child(user.id).child(firReadPostsNode).observeSingleEvent(of: .value, with: { (snapshot) in
-                    if(snapshot.exists() == false || snapshot.value == nil) {
-                        completion(nil)
-                    }
-                    let dict = snapshot.value as! [String:AnyObject]
-                    var postobj = Post(id: key, username: defvalue[firUsernameNode] as! String, postImagePath: defvalue[firImagePathNode] as! String, thread: defvalue[firThreadNode] as! String, dateString: defvalue[firDateNode] as! String, read: false)
-                    for (_,id) in dict{
-                        if((id as! String) == key){
-                            postobj = Post(id: key, username: defvalue[firUsernameNode] as! String, postImagePath: defvalue[firImagePathNode] as! String, thread: defvalue[firThreadNode] as! String, dateString: defvalue[firDateNode] as! String, read: true)
-                            break
+            if(snapshot.value == nil) {
+                completion(nil)
+            }
+        
+                    dbRef.child(firUsersNode).child(user.id).child(firReadPostsNode).observeSingleEvent(of: .value, with: { (snapshot1) in
+                let postDict = snapshot.value as! [String:AnyObject]
+                        
+                for (key,value) in postDict{//go through posts
+                    let recievedpost = value as! [String:AnyObject]
+                    var postobj = Post(id: key, username: recievedpost[firUsernameNode] as! String, postImagePath: recievedpost[firImagePathNode] as! String, thread: recievedpost[firThreadNode] as! String, dateString: recievedpost[firDateNode] as! String, read: false)
+                    if(snapshot1.exists() != false && snapshot1.value != nil) {
+                        let readDict = snapshot1.value as! [String:AnyObject]
+                        for (_,id) in readDict{ //check if posts have been read
+                            if((id as! String) == key){
+                                postobj = Post(id: key, username: recievedpost[firUsernameNode] as! String, postImagePath: recievedpost[firImagePathNode] as! String, thread: recievedpost[firThreadNode] as! String, dateString: recievedpost[firDateNode] as! String, read: true)
+                            }
                         }
                     }
+
+
                     postArray.append(postobj)
-                })
-                 completion(postArray)
-            }
+                }
+                completion(postArray)
+            })
     })
 }
 
